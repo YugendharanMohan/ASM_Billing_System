@@ -23,6 +23,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def root():
+    return {"status": "Backend running"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 # Mount the static directory
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
@@ -189,8 +197,7 @@ def get_worker_meters(
             return result
         else:
             raise HTTPException(status_code=404, detail="No production record found for these criteria")
-
-
+        
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
