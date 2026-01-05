@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Loom Optimizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        const API_BASE = "https://asm-billing-system.onrender.com";
+    </script>
+
+    <style>
+        /* Print Styles for the Receipt */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            #salaryModal,
+            #salaryModal * {
+                visibility: visible;
+            }
+
+            #salaryModal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background: white;
+                padding: 0;
+                margin: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans">
+
+    <nav class="bg-white border-b border-gray-200 fixed w-full z-30 top-0 no-print">
+        <div class="px-6 py-3 flex justify-between items-center">
+            <span class="text-xl font-bold text-indigo-600 flex items-center gap-2">
+                <i class="fas fa-industry"></i> ASM BILLING SYSTEM
+            </span>
+            <button onclick="logout()" class="text-gray-500 hover:text-red-600">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    </nav>
+
+    <div class="pt-20 px-6 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800"><i class="fas fa-users text-indigo-500 mr-2"></i>
+                Workers</h2>
+            <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                <p class="text-xs text-indigo-600 font-bold mb-2 uppercase">Salary Period</p>
+                <div class="flex gap-2 mb-2">
+                    <input type="date" id="startDate" class="w-1/2 p-1 text-sm border rounded">
+                    <input type="date" id="endDate" class="w-1/2 p-1 text-sm border rounded">
+                </div>
+                <p class="text-[10px] text-gray-500">Select dates, then click a worker below.</p>
+            </div>
+            <div class="space-y-2 mb-4">
+                <input id="workerName" type="text" placeholder="New Worker Name"
+                    class="w-full p-2 border rounded-md text-sm">
+                <button onclick="addWorker()"
+                    class="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 text-sm">Add
+                    Worker</button>
+            </div>
+            <ul id="workerList" class="mt-4 text-sm text-gray-600 space-y-2 max-h-60 overflow-y-auto"></ul>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800"><i class="fas fa-warehouse text-indigo-500 mr-2"></i>
+                Sheds & Looms</h2>
+            <div class="space-y-4">
+                <div class="flex gap-2">
+                    <input id="shedName" type="text" placeholder="Shed (A)"
+                        class="flex-1 p-2 border rounded-md text-sm">
+                    <button onclick="addShed()"
+                        class="bg-gray-100 px-4 py-2 rounded-md hover:bg-gray-200 border">Add</button>
+                </div>
+                <div class="flex gap-2">
+                    <select id="shedSelect" class="flex-1 p-2 border rounded-md text-sm">
+                        <option>Select Shed</option>
+                    </select>
+                    <input id="loomNum" type="text" placeholder="#" class="w-16 p-2 border rounded-md text-sm">
+                    <button onclick="addLoom()" class="bg-indigo-600 text-white px-3 py-2 rounded-md">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800"><i class="fas fa-bolt text-indigo-500 mr-2"></i>
+                Actions</h2>
+            <div class="space-y-3">
+                <a href="/salary_entry.html"
+                    class="block w-full text-center bg-green-600 text-white py-3 rounded-lg hover:bg-green-700">
+                    <i class="fas fa-edit mr-2"></i> Daily Meter Entry
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div id="salaryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white w-full max-w-4xl h-[95vh] overflow-y-auto rounded-lg shadow-2xl p-8 relative">
+
+            <button onclick="closeModal()"
+                class="no-print absolute top-4 right-4 text-gray-500 hover:text-red-600 text-2xl">&times;</button>
+            <button onclick="downloadReceipt()"
+                class="no-print absolute top-4 left-4 bg-gray-200 hover:bg-gray-300 p-2 rounded text-sm"><i
+                    class="fas fa-print"></i> Print</button>
+
+            <div id="slipContent" class="mt-8 font-mono text-gray-800 border-2 border-black p-6">
+
+                <div class="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
+                    <div class="border-2 border-black px-4 py-2">
+                        <h1 class="text-xl font-bold uppercase" id="slipName">Worker Name</h1>
+                    </div>
+                    <div class="border-2 border-black px-4 py-2 text-right">
+                        <p class="text-xs text-gray-500 uppercase">Period</p>
+                        <p id="slipPeriod" class="font-bold text-sm">-- to --</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full border-collapse border border-black text-center text-sm">
+                        <thead id="gridHeader" class="bg-gray-200 font-bold border-b border-black"></thead>
+                        <tbody id="gridBody"></tbody>
+                        <tfoot id="gridFooter" class="bg-gray-100 font-bold border-t-2 border-black"></tfoot>
+                    </table>
+                </div>
+
+                <div class="grid grid-cols-2 gap-8 border-t-2 border-black pt-6">
+                    <div>
+                        <table class="w-full text-sm border-collapse border border-black">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="border border-black p-1 text-left pl-2">LOOM NUMBERS</th>
+                                    <th class="border border-black p-1 text-right pr-2">TOTAL METERS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loomSummaryTable"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="text-right space-y-3 pt-2">
+                        <div class="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                            <span class="text-gray-600">TOTAL METERS:</span>
+                            <span class="font-bold text-lg" id="slipTotalMeters">0.00</span>
+                        </div>
+                        <div class="flex justify-between border-b border-dotted border-gray-400 pb-1">
+                            <span class="text-gray-600">AVG RATE:</span>
+                            <span id="slipRate">x 0.00</span>
+                        </div>
+                        <div
+                            class="flex justify-between text-xl font-bold mt-4 bg-gray-100 p-2 border border-black rounded">
+                            <span>TOTAL PAY:</span>
+                            <span id="slipTotalPay">₹0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function logout() { localStorage.removeItem('adminToken'); window.location.href = '/'; }
+
+        // Initialize Dates
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('startDate').valueAsDate = firstDay;
+        document.getElementById('endDate').valueAsDate = today;
+
+        async function loadData() {
+            const wRes = await fetch('${API_BASE}/workers/');
+            const workers = await wRes.json();
+            document.getElementById('workerList').innerHTML = workers.map(w => `
+                <li class="border-b pb-2 pt-2 flex justify-between items-center hover:bg-gray-50 px-2 rounded cursor-pointer group" onclick="generateSlip(${w.id}, '${w.name}')">
+                    <span class="font-medium text-indigo-700 group-hover:underline">${w.name}</span>
+                    <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">View Slip <i class="fas fa-chevron-right ml-1"></i></span>
+                </li>
+            `).join('');
+
+            const sRes = await fetch('${API_BASE}/sheds-looms/');
+            const sheds = await sRes.json();
+            document.getElementById('shedSelect').innerHTML = '<option value="">Select Shed</option>' + sheds.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        }
+
+        // --- RECEIPT GENERATOR ---
+        // async function generateSlip(workerId, workerName) {
+        //     const start = document.getElementById('startDate').value;
+        //     const end = document.getElementById('endDate').value;
+
+        //     if(!start || !end) return alert("Please select Start and End dates first.");
+
+        //     const res = await fetch(`/salary/calculate?worker_id=${workerId}&start_date=${start}&end_date=${end}`);
+        //     const data = await res.json();
+
+        //     if (!data.details) return alert("No records found for this period.");
+
+        //     // 1. Process Data
+        //     const uniqueDates = [...new Set(data.details.map(d => d.date))].sort();
+        //     const uniqueLooms = [...new Set(data.details.map(d => d.loom))].sort();
+
+        //     const dateMap = {}; 
+        //     uniqueDates.forEach(d => {
+        //         dateMap[d] = {};
+        //         uniqueLooms.forEach(l => dateMap[d][l] = 0);
+        //     });
+
+        //     const loomTotals = {};
+        //     uniqueLooms.forEach(l => loomTotals[l] = 0);
+
+        //     data.details.forEach(rec => {
+        //         dateMap[rec.date][rec.loom] += rec.meters; 
+        //         loomTotals[rec.loom] += rec.meters;        
+        //     });
+
+        //     // 2. Render Header
+        //     document.getElementById('slipName').innerText = workerName;
+        //     document.getElementById('slipPeriod').innerText = `${start} to ${end}`;
+        //     document.getElementById('salaryModal').classList.remove('hidden');
+
+        //     const thead = document.getElementById('gridHeader');
+        //     const tbody = document.getElementById('gridBody');
+        //     const tfoot = document.getElementById('gridFooter');
+
+        //     // --- HEADER ROW (Looms) ---
+        //     let headerHTML = '<tr><th class="p-2 border border-black bg-gray-100 w-24">DATE</th>';
+        //     uniqueLooms.forEach(loom => {
+        //         headerHTML += `<th class="p-2 border border-black min-w-[60px]">${loom}</th>`;
+        //     });
+        //     headerHTML += '</tr>';
+        //     thead.innerHTML = headerHTML;
+
+        //     // --- BODY ROWS (Dates) ---
+        //     let bodyHTML = '';
+        //     uniqueDates.forEach(date => {
+        //         const dateObj = new Date(date);
+        //         const dayStr = `${dateObj.getDate()}/${dateObj.getMonth()+1}`; // e.g. 8/12
+
+        //         bodyHTML += `<tr>`;
+        //         bodyHTML += `<td class="p-2 border border-black font-bold bg-gray-50">${dayStr}</td>`;
+
+        //         uniqueLooms.forEach(loom => {
+        //             const val = dateMap[date][loom];
+        //             const displayVal = val > 0 ? val.toFixed(1) : '-';
+        //             const style = val > 0 ? 'text-black font-medium' : 'text-gray-300';
+        //             bodyHTML += `<td class="p-2 border border-black ${style}">${displayVal}</td>`;
+        //         });
+        //         bodyHTML += `</tr>`;
+        //     });
+        //     tbody.innerHTML = bodyHTML;
+
+        //     // --- FOOTER ROW (Totals) [THIS IS THE MISSING PIECE] ---
+        //     let footerHTML = '<tr><td class="p-2 border border-black font-extrabold text-left pl-2">TOTAL</td>';
+        //     uniqueLooms.forEach(loom => {
+        //         const total = loomTotals[loom];
+        //         const displayTotal = total > 0 ? total.toFixed(1) : '-';
+        //         footerHTML += `<td class="p-2 border border-black font-extrabold text-indigo-900">${displayTotal}</td>`;
+        //     });
+        //     footerHTML += '</tr>';
+        //     tfoot.innerHTML = footerHTML;
+
+        //     // 4. Bottom Left Summary
+        //     let summaryHTML = '';
+        //     uniqueLooms.forEach(loom => {
+        //         if(loomTotals[loom] > 0) {
+        //             summaryHTML += `
+        //                 <tr>
+        //                     <td class="border border-black p-1 pl-2 font-bold">${loom}</td>
+        //                     <td class="border border-black p-1 pr-2 text-right">${loomTotals[loom].toFixed(2)}</td>
+        //                 </tr>`;
+        //         }
+        //     });
+        //     document.getElementById('loomSummaryTable').innerHTML = summaryHTML;
+
+        //     // 5. Final Grand Totals
+        //     const totalMeters = data.summary.total_meters;
+        //     const totalSalary = data.summary.total_salary;
+        //     const avgRate = totalMeters > 0 ? (totalSalary / totalMeters) : 0;
+
+        //     document.getElementById('slipTotalMeters').innerText = totalMeters.toFixed(2);
+        //     document.getElementById('slipRate').innerText = `₹ ${avgRate.toFixed(2)}`;
+        //     document.getElementById('slipTotalPay').innerText = `₹ ${Math.round(totalSalary)}`;
+        // }
+
+
+        async function generateSlip(workerId, workerName) {
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+
+            if (!start || !end) {
+                alert("Please select Start and End dates first.");
+                return;
+            }
+
+            const res = await fetch(`${API_BASE}/salary/calculate?worker_id=${workerId}&start_date=${start}&end_date=${end}`);
+            const data = await res.json();
+            console.log(data);
+
+            if (!data.details || data.details.length === 0) {
+                alert("No records found for this period.");
+                return;
+            }
+
+            /* -------------------------------
+            CONSOLE LOG: Worker ID, Loom ID, Date
+            -------------------------------- */
+            console.log('=== SALARY SLIP DATA ===');
+            console.log(`Worker ID: ${workerId}`);
+            console.log(`Worker Name: ${workerName}`);
+            console.log(`Period: ${start} to ${end}`);
+            console.log('------------------------');
+
+            data.details.forEach(rec => {
+                console.log(rec);
+
+                console.log(`Worker ID: ${workerId}, Loom ID: ${rec.loom_id}, Date: ${rec.date}`);
+            });
+
+            console.log('========================');
+
+            /* -------------------------------
+            1. PREPARE DATES & LOOMS
+            -------------------------------- */
+            const uniqueDates = [...new Set(data.details.map(d => d.date))]
+                .sort((a, b) => new Date(a) - new Date(b));
+
+            const uniqueLooms = [...new Set(data.details.map(d => d.loom))]
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+            /* -------------------------------
+            2. INITIALIZE MAPS
+            -------------------------------- */
+            const dateMap = {};
+            uniqueDates.forEach(date => {
+                dateMap[date] = {};
+                uniqueLooms.forEach(loom => dateMap[date][loom] = 0);
+            });
+
+            const loomTotals = {};
+            uniqueLooms.forEach(loom => loomTotals[loom] = 0);
+
+            /* -------------------------------
+            3. FILL VALUES FROM DATABASE
+            -------------------------------- */
+            data.details.forEach(rec => {
+                const meters = parseFloat(rec.meters) || 0;
+                dateMap[rec.date][rec.loom] += meters;
+                loomTotals[rec.loom] += meters;
+            });
+
+            /* -------------------------------
+            4. SHOW MODAL HEADER
+            -------------------------------- */
+            document.getElementById('slipName').innerText = workerName;
+            document.getElementById('slipPeriod').innerText = `${start} to ${end}`;
+            document.getElementById('salaryModal').classList.remove('hidden');
+
+            const thead = document.getElementById('gridHeader');
+            const tbody = document.getElementById('gridBody');
+            const tfoot = document.getElementById('gridFooter');
+
+            /* -------------------------------
+            5. TABLE HEADER (A1 A2 A3 ...)
+            -------------------------------- */
+            let headerHTML = `
+        <tr>
+            <th class="p-2 border border-black bg-gray-100 w-24">DATE</th>
+    `;
+            uniqueLooms.forEach(loom => {
+                headerHTML += `<th class="p-2 border border-black">${loom}</th>`;
+            });
+            headerHTML += `</tr>`;
+            thead.innerHTML = headerHTML;
+
+            /* -------------------------------
+            6. DAILY GRID ROWS
+            -------------------------------- */
+            let bodyHTML = '';
+            uniqueDates.forEach(date => {
+                const d = new Date(date);
+                const label = `${d.getDate()}/${d.getMonth() + 1}`;
+
+                bodyHTML += `<tr>`;
+                bodyHTML += `<td class="p-2 border border-black font-bold bg-gray-50">${label}</td>`;
+
+                uniqueLooms.forEach(loom => {
+                    const val = dateMap[date][loom];
+                    bodyHTML += `
+                <td class="p-2 border border-black text-center">
+                    ${val > 0 ? val.toFixed(1) : '-'}
+                </td>
+            `;
+                });
+
+                bodyHTML += `</tr>`;
+            });
+            tbody.innerHTML = bodyHTML;
+
+            /* -------------------------------
+            7. TOTAL ROW (COLUMN SUM)
+            -------------------------------- */
+            let footerHTML = `
+        <tr class="bg-gray-100 font-bold">
+            <td class="p-2 border border-black">TOTAL</td>
+    `;
+            uniqueLooms.forEach(loom => {
+                footerHTML += `
+            <td class="p-2 border border-black text-center">
+                ${loomTotals[loom].toFixed(1)}
+            </td>
+        `;
+            });
+            footerHTML += `</tr>`;
+            tfoot.innerHTML = footerHTML;
+
+            /* -------------------------------
+            8. LOOM SUMMARY TABLE
+            -------------------------------- */
+            let summaryHTML = '';
+            uniqueLooms.forEach(loom => {
+                summaryHTML += `
+            <tr>
+                <td class="border border-black p-1 pl-2 font-bold">${loom}</td>
+                <td class="border border-black p-1 pr-2 text-right">
+                    ${loomTotals[loom].toFixed(1)}
+                </td>
+            </tr>
+        `;
+            });
+            document.getElementById('loomSummaryTable').innerHTML = summaryHTML;
+
+            /* -------------------------------
+            9. GRAND TOTALS
+            -------------------------------- */
+            const totalMeters = parseFloat(data.summary.total_meters) || 0;
+            const totalSalary = parseFloat(data.summary.total_salary) || 0;
+            const avgRate = totalMeters > 0 ? totalSalary / totalMeters : 0;
+
+            document.getElementById('slipTotalMeters').innerText = totalMeters.toFixed(2);
+            document.getElementById('slipRate').innerText = `₹ ${avgRate.toFixed(2)}`;
+            document.getElementById('slipTotalPay').innerText = `₹ ${Math.round(totalSalary)}`;
+        }
+
+
+
+        function closeModal() { document.getElementById('salaryModal').classList.add('hidden'); }
+        async function addWorker() {
+            const name = document.getElementById('workerName').value;
+            if (!name) return alert("Enter a name");
+            await fetch('${API_BASE}/workers/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+            loadData();
+            document.getElementById('workerName').value = '';
+        }
+        async function addShed() {
+            const name = document.getElementById('shedName').value;
+            await fetch('${API_BASE}/sheds/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+            location.reload();
+        }
+        async function addLoom() {
+            const shed_id = document.getElementById('shedSelect').value;
+            const loom_num = document.getElementById('loomNum').value;
+            await fetch(`${API_BASE}/looms/?shed_id=${shed_id}&loom_num=${loom_num}`, { method: 'POST' });
+            alert("Loom Added!");
+        }
+
+        async function downloadReceipt() {
+            const { jsPDF } = window.jspdf;
+            const element = document.getElementById('slipContent');
+            const workerName = document.getElementById('slipName').innerText;
+            const end = document.getElementById('endDate').value;
+
+            // Temporary styles to ensure capture is perfect
+            element.style.transform = 'scale(1)';
+
+            html2canvas(element, {
+                scale: 2, // Higher quality
+                useCORS: true,
+                backgroundColor: "#ffffff"
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('p', 'mm', 'a4');
+
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(`${workerName}_${end}`);
+            });
+        }
+
+        loadData();
+    </script>
+</body>
+
+</html>

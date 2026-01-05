@@ -1,6 +1,15 @@
+# Frontend
 frontend/
 node_modules/
+
+# Secrets
 .env
+firebase-service-account.json
+
+# Python
 __pycache__/
 *.pyc
-firebase-service-account.json
+
+# OS
+.DS_Store
+
